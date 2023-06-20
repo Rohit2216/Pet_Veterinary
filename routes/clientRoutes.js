@@ -4,6 +4,7 @@ const { DocModel } = require("../model/doctor");
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
+  port:587,
   service: "gmail",
   auth: {
     user: "chauhanrohit716@gmail.com",
