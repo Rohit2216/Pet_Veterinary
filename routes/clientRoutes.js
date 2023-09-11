@@ -2,17 +2,19 @@ const express = require("express");
 const { ClientModel } = require("../model/client");
 const { DocModel } = require("../model/doctor");
 const nodemailer = require("nodemailer");
+require("dotenv").config()
 
 const transporter = nodemailer.createTransport({
   port:587,
   service: "gmail",
   auth: {
     user: "chauhanrohit716@gmail.com",
-    pass: "aihdxunhyyjycqrv",
+    pass: process.env.gmail_api_key,
   },
 });
 
 const clientRouter = express.Router();
+
 clientRouter.post("/details", async (req, res) => {
   const {
     client_name,
@@ -111,54 +113,94 @@ clientRouter.get("/", async (req, res) => {
 
 // client update the appointment and sent the email 
 
-clientRouter.patch("/update/:clientId", async (req, res) => {
-    const clientId = req.params.clientId;
-    const payload = req.body;
+clientRouter.patch('/update/:clientId', async (req, res) => {
+  const clientId = req.params.clientId;
+  const payload = req.body;
 
-    try {
-        await ClientModel.findByIdAndUpdate({ _id: clientId }, payload);
+  try {
+    await ClientModel.findByIdAndUpdate({ _id: clientId }, payload);
 
-        // Fetch the updated client data
-        const updatedClient = await ClientModel.findById(clientId);
+    // Fetch the updated client data
+    const updatedClient = await ClientModel.findById(clientId);
 
-        // Send email to the client
-        const clientEmailData = {
-            from: "chauhanrohit716@gmail.com",
-            to: updatedClient.email,
-            subject: "Appointment Update",
-            text: "Your appointment has been updated.",
-            html: `<p>Your appointment details have been updated.</p>
+    // Send email to the client
+    const clientEmailData = {
+      from: 'chauhanrohit716@gmail.com',
+      to: updatedClient.email,
+      subject: 'Appointment Update',
+      text: 'Your appointment has been updated.',
+      html: `<p>Your appointment details have been updated.</p>
               <p>New appointment date: ${updatedClient.veterinary_appointment}</p>`,
-        };
+    };
 
-        transporter.sendMail(clientEmailData, (error, info) => {
-            if (error) {
-                console.log("Error sending email:", error);
-            } else {
-                console.log("Email sent:", info.response);
-            }
-        });
+    await transporter.sendMail(clientEmailData);
+    console.log('Client email sent');
 
-        res.status(200).send({ msg: "Client updated successfully!" });
-    } catch (error) {
-        res.status(400).send({ msg: error.message });
-    }
+    // Send email to the doctor
+    const doctorEmailData = {
+      from: 'chauhanrohit716@gmail.com',
+      to: updatedClient.DoctorEmail,
+      subject: 'Appointment Update',
+      text: 'An appointment details have been updated.',
+      html: `<p>An appointment details have been updated.</p>
+         <p>Client Name: ${updatedClient.client_name}</p>
+         <p>Updated Appointment Date: ${updatedClient.veterinary_appointment}</p>`,
+    };
+
+    await transporter.sendMail(doctorEmailData);
+    console.log('Doctor email sent');
+
+    res.status(200).send({ msg: 'Client updated successfully!' });
+  } catch (error) {
+    console.log('Error:', error);
+    res.status(400).send({ msg: error.message });
+  }
 });
-
 
 
 // client delete the appointment 
 
-clientRouter.delete("/delete/:clientId", async (req, res) => {
-    const clientId = req.params.clientId;
+clientRouter.delete('/delete/:clientId', async (req, res) => {
+  const clientId = req.params.clientId;
 
-    try {
-        await ClientModel.findByIdAndDelete({ _id: clientId })
-        res.status(200).send({ "msg": "client deleted appointment Succesfuly!" })
-    } catch (error) {
-        res.status(400).send({ "msg": "error.message" })
-    }
-})
+  try {
+    // Fetch the client data before deleting the appointment
+    const clientToDelete = await ClientModel.findById(clientId);
+
+    // Delete the appointment
+    await ClientModel.findByIdAndUpdate({ _id: clientId }, { $unset: { veterinary_appointment: 1 } });
+
+    // Send email to the client
+    const clientEmailData = {
+      from: 'chauhanrohit716@gmail.com',
+      to: clientToDelete.email,
+      subject: 'Appointment Cancellation',
+      text: 'Your appointment has been canceled.',
+      html: '<p>Your appointment has been canceled.</p>',
+    };
+
+    await transporter.sendMail(clientEmailData);
+    console.log('Client email sent for appointment cancellation');
+
+    // Send email to the doctor
+    const doctorEmailData = {
+      from: 'chauhanrohit716@gmail.com',
+      to: clientToDelete.DoctorEmail,
+      subject: 'Appointment Cancellation',
+      text: 'An appointment has been canceled.',
+      html: `<p>An appointment has been canceled.</p>
+         <p>Client Name: ${clientToDelete.client_name}</p>`,
+    };
+
+    await transporter.sendMail(doctorEmailData);
+    console.log('Doctor email sent for appointment cancellation');
+
+    res.status(200).send({ msg: 'Appointment canceled successfully!' });
+  } catch (error) {
+    console.log('Error:', error);
+    res.status(400).send({ msg: error.message });
+  }
+});
 
 
 
